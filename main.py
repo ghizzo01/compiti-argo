@@ -83,7 +83,7 @@ dati = {
     'giorni': giorni,
 }
 
-json_dati = json.dumps(dati, indent=4)
+json_dati = json.dumps(dati, indent=4, sort_keys=True)
 
 # abilito github
 if github:
