@@ -1,4 +1,5 @@
 import time
+import json 
 import requests
 from bs4 import BeautifulSoup
 import urllib.parse
@@ -39,57 +40,15 @@ html_compiti = risposta_compiti.text
 soup =  BeautifulSoup(html_compiti, 'html.parser')
 giorni_compiti = soup.select('.fieldset-anagrafe')
 
-html_pagina = ""
-
-#inizio a creare l'html
-html_pagina = html_pagina + '''
-<html>
-  <head>
-    <meta charset="utf-8"/>
-    <title>Compiti Classe 2A</title>
-
-    <style>
-        ul {
-            list-style: none;
-        }
-
-        .compiti li {
-            margin-bottom: 40px;
-        }
-
-        p {
-            margin: 7px;
-        }
-
-        .giorno {
-            font-weight: bold;
-            font-size: 15pt;
-        }
-
-        .aggiornamento {
-            font-weight: bold;
-            font-size: 15pt;
-        }
-    </style>
-  </head>
-  <body>
-'''
-
-# metto la data dell'ultimo aggiornamento della pagina
-oggi = time.strftime("%d/%m/%Y %H:%M:%S")
-html_pagina = html_pagina + '<p class="aggiornamento">ultimo aggiornamento : ' + oggi + '</p>'
-
-# inizio a creare la lista dei compiti
-html_pagina = html_pagina + '<ul class="compiti">'
+giorni = []
 
 # scorro i giorni
 for compiti_giorno in giorni_compiti:
-    html_pagina = html_pagina + '<li>'
-
     # scrivo il giorno
     data = compiti_giorno.select('legend')
     giorno = data[0].text
-    html_pagina = html_pagina + '<p class="giorno">' + giorno + '</p>'
+
+    compiti = []
 
     #scorro le materie di ogni giorno
     materia_compito = compiti_giorno.select('tr')
@@ -101,25 +60,30 @@ for compiti_giorno in giorni_compiti:
 
         # scrivo la materia del compito
         nome_materia = materie[0].text
-        html_pagina = html_pagina + '<p>' + nome_materia + '</p>'
+
 
         # scrivo il compito
         compito = materia.select('td')[1]
-        indicazioni_compito = compito.text
-        html_pagina = html_pagina + '<p>' + indicazioni_compito + '</p>'
+        indicazioni_compito = compito.text.strip()
 
-    html_pagina = html_pagina + '</li>'
+        compiti.append({
+            "materia": nome_materia,
+            "compito": indicazioni_compito,
+        })
 
-# chiudo il file html
-html_pagina = html_pagina + '''
-        </ul>
-    </body>
-</html>
-'''
+    giorni.append({
+         "giorno": giorno,
+         "compiti": compiti,
+    })
 
-#creo il file "compiti"(non serve per il funzionamento del programma, ma serve per testare in locale)
-with open("compiti.html", "w") as f:
-    f.write(html_pagina)
+oggi = time.strftime("%d/%m/%Y %H:%M:%S")
+
+dati = {
+    'ultimo_aggiornamento': oggi,
+    'giorni': giorni,
+}
+
+json_dati = json.dumps(dati, indent=4)
 
 # abilito github
 if github:
@@ -148,11 +112,11 @@ if github:
     tree_url = r.json()['tree']['url']
 
     # carichiamo il file modificato (index.html)
-    base64_html = base64.b64encode(html_pagina.encode('utf-8')).decode('utf-8')
+    base64_json = base64.b64encode(json_dati.encode('utf-8')).decode('utf-8')
 
     url = 'https://api.github.com/repos/'+ username_github + '/' + repository + '/git/blobs'
     r = requests.post(url, json={
-        "content": str(base64_html),
+        "content": str(base64_json),
         "encoding": "base64",
     }, headers=HEADER_GITHUB)
 
@@ -166,7 +130,7 @@ if github:
         "base_tree": tree_sha,
         "tree": [
             {
-                "path": "index.html",
+                "path": "compiti.json",
                 "mode": "100644",
                 "type": "blob",
                 "sha": blob_sha,
